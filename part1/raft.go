@@ -1,7 +1,5 @@
 package raftexample
 
-//TODO Left off on becoming a leader
-
 import (
 	"fmt"
 	"log"
@@ -90,7 +88,22 @@ type RequestVoteArgs struct {
 
 type RequestVoteReply struct {
     Term int
-    VotesGranted bool
+    VoteGranted bool
+}
+
+type AppendEntriesArgs struct {
+    Term int
+    LeaderId int
+
+    PrevLogIndex int
+    PrevLogTerm int
+    Entries []LogEntry
+    LeaderCommit int
+}
+
+type AppendEntriesReply struct {
+    Term int
+    Success bool
 }
 
 func (cm *ConsensusModule) electionTimeout() time.Duration {
@@ -184,4 +197,117 @@ func (cm *ConsensusModule) startElection() {
     }
 
     go cm.runElectionTimer()
+}
+
+func (cm *ConsensusModule) startLeader() {
+    cm.state = Leader
+    cm.dlog("becomes Leader; term=%d, log=%v", cm.currentTerm, cm.log)
+
+    go func() {
+        ticker := time.NewTicker(50 * time.Millisecond)
+        defer ticker.Stop()
+
+        //Send heartbeats as long as we are still the leader
+        for {
+            cm.leaderSendHeartbeats()
+            <-ticker.C
+
+            cm.mu.Lock()
+            if cm.state != Leader {
+                cm.mu.Unlock()
+                return
+            }
+            cm.mu.Unlock()
+        }
+    }()
+}
+
+func (cm *ConsensusModule) leaderSendHeartbeats() {
+    cm.mu.Lock()
+    savedCurrentTerm := cm.currentTerm
+    cm.mu.Unlock()
+
+    for _, peerId := range cm.peerIds {
+        args := AppendEntriesArgs {
+            Term: savedCurrentTerm,
+            LeaderId: cm.id,
+        }
+
+        go func(peerId int) {
+            cm.dlog("sending AppendEntries to %v: ni=%d, args=%+v", peerId, 0, args)
+            var reply AppendEntriesReply
+            if err := cm.server.Call(peerId, "ConsensusModule.AppendEntries", args, &reply); err == nil {
+                cm.mu.Lock()
+                defer cm.mu.Unlock()
+
+                if reply.Term > savedCurrentTerm {
+                    cm.dlog("term out of date in heartbeat reply")
+                    cm.becomeFollower(reply.Term)
+                    return
+                }
+            }
+        }(peerId)
+    }
+}
+
+func (cm *ConsensusModule) becomeFollower(term int) {
+    cm.dlog("becomes Follower with term=%d; log=%v", term, cm.log)
+    cm.state = Follower
+    cm.currentTerm = term
+    cm.votedFor = -1
+    cm.electionResetEvent = time.Now()
+
+    go cm.runElectionTimer()
+}
+
+func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    if cm.state == Dead {
+        return nil
+    }
+    cm.dlog("RequestVote: %+v [currentTerm=%d, votedFor=%d]", args, cm.currentTerm, cm.votedFor)
+
+    if args.Term > cm.currentTerm {
+        cm.dlog("... term out of date in RequestVote")
+        cm.becomeFollower(args.Term)
+    }
+
+    if cm.currentTerm == args.Term && (cm.votedFor == -1 || cm.votedFor == args.CandidateId) {
+        reply.VoteGranted = true
+        cm.votedFor = args.CandidateId
+        cm.electionResetEvent = time.Now()
+    } else {
+        reply.VoteGranted = false
+    }
+    reply.Term = cm.currentTerm
+    cm.dlog("... RequestVote reply: %+v", reply)
+    return nil
+}
+
+func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    if cm.state == Dead {
+        return nil
+    }
+    cm.dlog("AppendEntries: %+v", args)
+
+    if args.Term > cm.currentTerm {
+        cm.dlog("... term out of date in AppendEntries")
+        cm.becomeFollower(args.Term)
+    }
+
+    reply.Success = false
+    if args.Term == cm.currentTerm {
+        if cm.state != Follower {
+            cm.becomeFollower(args.Term)
+        }
+        cm.electionResetEvent = time.Now()
+        reply.Success = true
+    }
+
+    reply.Term = cm.currentTerm
+    cm.dlog("AppendEntries reply: %+v", *reply)
+    return nil
 }

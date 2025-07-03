@@ -45,7 +45,9 @@ func (s *Server) Serve() {
     s.cm = NewConsensusModule(s.serverId, s.peerIds, s, s.ready)
 
     s.rpcServer = rpc.NewServer()
-    s.rpcProxy = *RPCProxy{cm: s.cm}
+    s.rpcProxy = *RPCProxy{
+        cm: s.cm,
+    }
     s.rpcServer.RegisterName("ConsensusModule", s.rpcProxy)
 
     var err error
