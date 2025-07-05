@@ -3,6 +3,7 @@ package raftexample
 import (
 	"log"
 	"testing"
+	"time"
 )
 
 func init() {
@@ -85,4 +86,47 @@ func (h *Harness) ReconnectPeer(id int) {
         }
     }
     h.connected[id] = true
+}
+
+func (h *Harness) CheckSingleLeader() (int, int) {
+    for r := 0; r < 5; r++ {
+        leaderId := -1
+        leaderTerm := -1
+        for i := 0; i < h.n; i++ {
+            if h.connected[i] {
+                _, term, isLeader := h.cluster[i].cm.Report()
+                if isLeader {
+                    if leaderId < 0 {
+                        leaderId = i
+                        leaderId = term
+                    } else {
+                        h.t.Fatalf("both %d and %d think they are leaders", leaderId, i)
+                    }
+                }
+            }
+        }
+        if leaderId >= 0 {
+            return leaderId, leaderTerm
+        }
+        time.Sleep(150 * time.Millisecond)
+    }
+
+    h.t.Fatalf("leader not found")
+    return -1, -1
+}
+
+func (h *Harness) CheckNoLeader() {
+    for i := 0; i < h.n; i++ {
+        if h.connected[i] {
+            _, _, isLeader := h.cluster[i].cm.Report()
+            if isLeader {
+                h.t.Fatalf("server %d is leader; want none", i)
+            }
+        }
+    }
+}
+
+func tlog(format string, args ...any) {
+    format = "[TEST] " + format
+    log.Printf(format, args...)
 }

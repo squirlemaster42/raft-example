@@ -311,3 +311,9 @@ func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEn
     cm.dlog("AppendEntries reply: %+v", *reply)
     return nil
 }
+
+func (cm *ConsensusModule) Report() (id int, term int, isLeader bool) {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    return cm.id, cm.currentTerm, cm.state == Leader
+}
