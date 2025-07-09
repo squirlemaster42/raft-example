@@ -72,6 +72,13 @@ func NewConsensusModule(id int, peerIds []int, server *Server, ready <-chan any)
     return cm
 }
 
+func (cm *ConsensusModule) Stop() {
+    cm.mu.Lock()
+    defer cm.mu.Unlock()
+    cm.state = Dead
+    cm.dlog("becomes Dead")
+}
+
 func (cm *ConsensusModule) dlog(format string, args ...any) {
     if DebugCM > 0 {
         format = fmt.Sprintf("[%d] ", cm.id) + format

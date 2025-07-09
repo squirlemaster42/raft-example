@@ -22,9 +22,9 @@ func NewHarness(t *testing.T, n int) *Harness {
     connected := make([]bool, n)
     ready := make(chan any)
 
-    for i := 0; i < n; i++ {
+    for i := range n {
         peerIds := make([]int, 0)
-        for p := 0; p < n; p++ {
+        for p := range n {
             if p != i {
                 peerIds = append(peerIds, p)
             }
@@ -34,8 +34,8 @@ func NewHarness(t *testing.T, n int) *Harness {
         ns[i].Serve()
     }
 
-    for i := 0; i < n; i++ {
-        for j := 0; j < n; j++ {
+    for i := range n {
+        for j := range n {
             if i != j {
                 ns[i].ConnectToPeer(j, ns[i].GetListenAddr())
             }
@@ -53,11 +53,11 @@ func NewHarness(t *testing.T, n int) *Harness {
 }
 
 func (h *Harness) Shutdown() {
-    for i := 0; i < h.n; i++ {
+    for i := range h.n {
         h.cluster[i].DisconnectAll()
         h.connected[i] = false
     }
-    for i := 0; i < h.n; i++ {
+    for i := range h.n {
         h.cluster[i].Shutdown()
     }
 }
@@ -65,7 +65,7 @@ func (h *Harness) Shutdown() {
 func (h *Harness) DisconnectPeer(id int) {
     tlog("Disconnect %d", id)
     h.cluster[id].DisconnectAll()
-    for j := 0; j < h.n; j++ {
+    for j := range h.n {
         if j != id {
             h.cluster[j].DisconnectPeer(id)
         }
@@ -75,7 +75,7 @@ func (h *Harness) DisconnectPeer(id int) {
 
 func (h *Harness) ReconnectPeer(id int) {
     tlog("Reconnect %d", id)
-    for j := 0; j < h.n; j++ {
+    for j := range h.n {
         if j != id {
             if err := h.cluster[id].ConnectToPeer(j, h.cluster[j].GetListenAddr()); err != nil {
                 h.t.Fatal(err)
@@ -89,10 +89,11 @@ func (h *Harness) ReconnectPeer(id int) {
 }
 
 func (h *Harness) CheckSingleLeader() (int, int) {
-    for r := 0; r < 5; r++ {
+    for r := range 5 {
+        tlog("Checking for single leader %d", r)
         leaderId := -1
         leaderTerm := -1
-        for i := 0; i < h.n; i++ {
+        for i := range h.n {
             if h.connected[i] {
                 _, term, isLeader := h.cluster[i].cm.Report()
                 if isLeader {
@@ -116,7 +117,7 @@ func (h *Harness) CheckSingleLeader() (int, int) {
 }
 
 func (h *Harness) CheckNoLeader() {
-    for i := 0; i < h.n; i++ {
+    for i := range h.n {
         if h.connected[i] {
             _, _, isLeader := h.cluster[i].cm.Report()
             if isLeader {
