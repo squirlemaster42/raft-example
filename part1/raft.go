@@ -3,6 +3,7 @@ package raftexample
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"math/rand"
 	"os"
 	"sync"
@@ -175,7 +176,8 @@ func (cm *ConsensusModule) startElection() {
             var reply RequestVoteReply
 
             cm.dlog("sending RequestVote to %d: %+v", peerId, args)
-            if err := cm.server.Call(peerId, "ConsensusModule.RequestVote", args, &reply); err == nil {
+            err := cm.server.Call(peerId, "ConsensusModule.RequestVote", args, &reply)
+            if err == nil {
                 cm.mu.Lock()
                 defer cm.mu.Unlock()
                 cm.dlog("reveived RequestVoteReply %+v", reply)
@@ -199,6 +201,8 @@ func (cm *ConsensusModule) startElection() {
                         }
                     }
                 }
+            } else {
+                cm.dlog("Failed to Request Vote from %d. Error: %+v", peerId, err)
             }
         }(peerId)
     }

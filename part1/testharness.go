@@ -89,6 +89,7 @@ func (h *Harness) ReconnectPeer(id int) {
 }
 
 func (h *Harness) CheckSingleLeader() (int, int) {
+    tlog("Checking Single Leader")
     for r := range 5 {
         tlog("Checking for single leader %d", r)
         leaderId := -1
