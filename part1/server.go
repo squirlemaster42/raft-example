@@ -1,15 +1,14 @@
 package raftexample
 
 import (
-	"fmt"
-	"log"
-	"log/slog"
-	"math/rand"
-	"net"
-	"net/rpc"
-	"os"
-	"sync"
-	"time"
+    "fmt"
+    "log"
+    "math/rand"
+    "net"
+    "net/rpc"
+    "os"
+    "sync"
+    "time"
 )
 
 type Server struct {
@@ -31,7 +30,7 @@ type Server struct {
     wg sync.WaitGroup
 }
 
-func NewServer (serverId int, peerIds []int, ready <-chan any) *Server {
+func NewServer(serverId int, peerIds []int, ready <-chan any) *Server {
     server := new(Server)
     server.serverId = serverId
     server.peerIds = peerIds
@@ -70,15 +69,13 @@ func (s *Server) Serve() {
                 case <-s.quit:
                     return
                 default:
-                    log.Fatal("Accept error:", err)
+                    log.Fatal("accept error:", err)
                 }
             }
             s.wg.Add(1)
             go func() {
                 s.rpcServer.ServeConn(conn)
-                slog.Info("Finished serving rpc connection", "Id", s.cm.id)
                 s.wg.Done()
-                slog.Info("Signaled Wait Group Done", "Id", s.cm.id)
             }()
         }
     }()
@@ -96,15 +93,10 @@ func (s *Server) DisconnectAll() {
 }
 
 func (s *Server) Shutdown() {
-    slog.Info("Shutting down server", "Id", s.cm.id)
     s.cm.Stop()
-    slog.Info("Stopped CM", "Id", s.cm.id)
     close(s.quit)
-    slog.Info("Closed quit channel", "Id", s.cm.id)
     s.listener.Close()
-    slog.Info("Closed listener", "Id", s.cm.id)
     s.wg.Wait()
-    slog.Info("Finished waiting for wait group", "Id", s.cm.id)
 }
 
 func (s *Server) GetListenAddr() net.Addr {
@@ -142,8 +134,6 @@ func (s *Server) Call(id int, serviceMethod string, args any, reply any) error {
     peer := s.peerClients[id]
     s.mu.Unlock()
 
-    slog.Info("Calling peer", "Service Method", serviceMethod, "Caller Id", s.cm.id, "Peer Id", id)
-
     if peer == nil {
         return fmt.Errorf("call client %d after it's closed", id)
     } else {
@@ -155,7 +145,7 @@ type RPCProxy struct {
     cm *ConsensusModule
 }
 
-func (rpc *RPCProxy) RequestVote( args RequestVoteArgs, reply *RequestVoteReply) error {
+func (rpc *RPCProxy) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
     if len(os.Getenv("RAFT_UNRELIABLE_RPC")) > 0 {
         dice := rand.Intn(10)
         if dice == 9 {
@@ -184,5 +174,5 @@ func (rpc *RPCProxy) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesR
     } else {
         time.Sleep(time.Duration(1 + rand.Intn(5)) * time.Millisecond)
     }
-    return rpc.cm.server.rpcProxy.AppendEntries(args, reply)
+    return rpc.cm.AppendEntries(args, reply)
 }
