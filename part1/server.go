@@ -3,6 +3,7 @@ package raftexample
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/rpc"
@@ -75,7 +76,9 @@ func (s *Server) Serve() {
             s.wg.Add(1)
             go func() {
                 s.rpcServer.ServeConn(conn)
+                slog.Info("Finished serving rpc connection", "Id", s.cm.id)
                 s.wg.Done()
+                slog.Info("Signaled Wait Group Done", "Id", s.cm.id)
             }()
         }
     }()
@@ -93,10 +96,15 @@ func (s *Server) DisconnectAll() {
 }
 
 func (s *Server) Shutdown() {
+    slog.Info("Shutting down server", "Id", s.cm.id)
     s.cm.Stop()
+    slog.Info("Stopped CM", "Id", s.cm.id)
     close(s.quit)
+    slog.Info("Closed quit channel", "Id", s.cm.id)
     s.listener.Close()
+    slog.Info("Closed listener", "Id", s.cm.id)
     s.wg.Wait()
+    slog.Info("Finished waiting for wait group", "Id", s.cm.id)
 }
 
 func (s *Server) GetListenAddr() net.Addr {
@@ -133,6 +141,8 @@ func (s *Server) Call(id int, serviceMethod string, args any, reply any) error {
     s.mu.Lock()
     peer := s.peerClients[id]
     s.mu.Unlock()
+
+    slog.Info("Calling peer", "Service Method", serviceMethod, "Caller Id", s.cm.id, "Peer Id", id)
 
     if peer == nil {
         return fmt.Errorf("call client %d after it's closed", id)

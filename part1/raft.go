@@ -3,7 +3,6 @@ package raftexample
 import (
 	"fmt"
 	"log"
-	"log/slog"
 	"math/rand"
 	"os"
 	"sync"
@@ -59,8 +58,9 @@ func NewConsensusModule(id int, peerIds []int, server *Server, ready <-chan any)
     cm.id = id
     cm.peerIds = peerIds
     cm.server = server
-    cm.state = cm.state
+    cm.state = Follower
     cm.votedFor = -1
+    cm.dlog("Created Consensus Module with id %d", id)
 
     go func() {
         <-ready
@@ -78,6 +78,7 @@ func (cm *ConsensusModule) Stop() {
     defer cm.mu.Unlock()
     cm.state = Dead
     cm.dlog("becomes Dead")
+    cm.dlog("Stopped %d", cm.id)
 }
 
 func (cm *ConsensusModule) dlog(format string, args ...any) {
@@ -292,7 +293,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
         reply.VoteGranted = false
     }
     reply.Term = cm.currentTerm
-    cm.dlog("... RequestVote reply: %+v", reply)
+    cm.dlog("... RequestVote reply: %+v from %d", reply, cm.id)
     return nil
 }
 

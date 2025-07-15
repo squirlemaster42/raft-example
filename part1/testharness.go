@@ -37,7 +37,7 @@ func NewHarness(t *testing.T, n int) *Harness {
     for i := range n {
         for j := range n {
             if i != j {
-                ns[i].ConnectToPeer(j, ns[i].GetListenAddr())
+                ns[i].ConnectToPeer(j, ns[j].GetListenAddr())
             }
         }
         connected[i] = true
@@ -53,12 +53,17 @@ func NewHarness(t *testing.T, n int) *Harness {
 }
 
 func (h *Harness) Shutdown() {
+    tlog("Shutting down")
     for i := range h.n {
+        tlog("Disconnecting %d", i)
         h.cluster[i].DisconnectAll()
         h.connected[i] = false
+        tlog("Disconnected %d", i)
     }
     for i := range h.n {
+        tlog("Shutting down %d", i)
         h.cluster[i].Shutdown()
+        tlog("Shutdown %d", i)
     }
 }
 
@@ -96,18 +101,20 @@ func (h *Harness) CheckSingleLeader() (int, int) {
         leaderTerm := -1
         for i := range h.n {
             if h.connected[i] {
-                _, term, isLeader := h.cluster[i].cm.Report()
+                id, term, isLeader := h.cluster[i].cm.Report()
+                tlog("Node %d is in term %d and has leader state %+v", id, term, isLeader)
                 if isLeader {
                     if leaderId < 0 {
-                        leaderId = i
-                        leaderId = term
+                        leaderId = id
+                        leaderTerm = term
                     } else {
-                        h.t.Fatalf("both %d and %d think they are leaders", leaderId, i)
+                        h.t.Fatalf("both %d and %d think they are leaders", leaderId, id)
                     }
                 }
             }
         }
         if leaderId >= 0 {
+            tlog("Found single leader %d on term %d", leaderId, leaderTerm)
             return leaderId, leaderTerm
         }
         time.Sleep(150 * time.Millisecond)
