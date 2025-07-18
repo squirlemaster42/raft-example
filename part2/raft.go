@@ -382,7 +382,18 @@ func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEn
             cm.becomeFollower(args.Term)
         }
         cm.electionResetEvent = time.Now()
+    }
+
+    if args.PrevLogIndex == -1 ||
+        (args.PrevLogIndex < len(cm.log) && args.PrevLogTerm == cm.log[args.PrevLogIndex].Term) {
         reply.Success = true
+
+        logInsertIndex := args.PrevLogIndex + 1
+        newEntriesIndex := 0
+
+        for {
+
+        }
     }
 
     reply.Term = cm.currentTerm
